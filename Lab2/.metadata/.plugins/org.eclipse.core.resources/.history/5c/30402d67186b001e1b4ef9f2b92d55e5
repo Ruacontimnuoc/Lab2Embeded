@@ -1,0 +1,36 @@
+#include <stdio.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include "esp_system.h"
+#include "driver/gpio.h"
+
+#define STUDENT_IDENTIFIER "2011725"
+#define BUTTON_GPIO 4
+
+void cyclic_task(void *pvParameters) {
+    while (1) {
+        printf("%s\n", STUDENT_IDENTIFIER);
+        vTaskDelay(pdMS_TO_TICKS(1000)); // 1-second delay
+    }
+}
+
+void button_task(void *pvParameters) {
+    esp_rom_gpio_pad_select_gpio(BUTTON_GPIO); // Use esp_rom_gpio_pad_select_gpio
+    gpio_set_direction(BUTTON_GPIO, GPIO_MODE_INPUT);
+    gpio_set_pull_mode(BUTTON_GPIO, GPIO_PULLUP_ONLY);
+
+    while (1) {
+        if (gpio_get_level(BUTTON_GPIO) == 0) {
+            printf("ESP32\n");
+            vTaskDelay(pdMS_TO_TICKS(1000)); // 1-second delay to avoid multiple presses
+        }
+        vTaskDelay(pdMS_TO_TICKS(10)); // Poll button every 10ms
+    }
+}
+
+void app_main() {
+    xTaskCreate(cyclic_task, "cyclic_task", 2048, NULL, 2, NULL);
+    xTaskCreate(button_task, "button_task", 2048, NULL, 2, NULL);
+
+    vTaskStartScheduler();
+}

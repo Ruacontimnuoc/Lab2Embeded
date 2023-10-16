@@ -1,0 +1,79 @@
+#include <stdio.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "esp_log.h"
+#include "driver/gpio.h"
+#include "esp_timer.h"
+
+#define STUDENT "2011725"
+#define LED_GPIO 2
+static bool led_state = false;
+// Define the GPIO for the button
+#define BUTTON_GPIO 26
+
+static const char *TAG = "LAB2";
+
+void cyclic_task(void *pvParameter) {
+    while (1) {
+        ESP_LOGI(TAG, "Student : %s", STUDENT);
+        // Delay for 1 second
+        vTaskDelay(pdMS_TO_TICKS(2000));
+    }
+}
+
+void acyclic_task(void *pvParameter) {
+    bool button_state = false;
+    bool last_button_state = true;
+
+    while (1) {
+        button_state = gpio_get_level(BUTTON_GPIO);
+
+        if (button_state == false && last_button_state == true) {
+            ESP_LOGI(TAG, "Button Pressed: ESP32");
+        }
+
+        last_button_state = button_state;
+
+        vTaskDelay(pdMS_TO_TICKS(100));  // Poll the button every 10ms
+    }
+}
+
+void toggle_led(void* arg) {
+    // Toggle the LED state
+    led_state = !led_state;
+
+    // Set the GPIO level based on the LED state
+    gpio_set_level(LED_GPIO, led_state);
+
+    ESP_LOGI(TAG, "LED state: %s", led_state ? "ON" : "OFF");
+}
+
+void app_main(void) {
+    // Configure the button GPIO
+    gpio_config_t io_conf;
+    io_conf.intr_type = GPIO_INTR_DISABLE;
+    io_conf.mode = GPIO_MODE_INPUT;
+    io_conf.pin_bit_mask = (1ULL << BUTTON_GPIO);
+    io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
+    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    gpio_config(&io_conf);
+
+    // Create cyclic task
+    xTaskCreate(cyclic_task, "cyclic_task", 2048, NULL, 5, NULL);
+
+    // Create acyclic task
+    xTaskCreate(acyclic_task, "acyclic_task", 2048, NULL, 5, NULL);
+
+    // Timer toogle led 1s
+    gpio_reset_pin(LED_GPIO);
+    gpio_set_direction(LED_GPIO, GPIO_MODE_OUTPUT);
+
+    // Configure and start the task period timer
+    esp_timer_handle_t timer;
+    esp_timer_create_args_t timer_args = {
+        .callback = &toggle_led,
+        .name = "toggle_led_timer"
+    };
+    esp_timer_create(&timer_args, &timer);
+    esp_timer_start_periodic(timer, 1000000);
+}
